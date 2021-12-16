@@ -14,11 +14,11 @@
 ::Copy the script file to %windir%
 	if not exist %windir%\ip.bat (
 		copy /b /y "%~f0" %windir%\ip.bat>0
-		echo.┌────────────────────────────────────────────────────────────┐
+		echo.├Ъ├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д┬┐
 		echo.%langWarn1%
 		echo.%langWarn2%
 		echo.%langWarn3%
-		echo.└────────────────────────────────────────────────────────────┘
+		echo.├А├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Д├Щ
 	)
 
 ::Processing script arguments
@@ -64,7 +64,7 @@
 
 :Help
 	echo.
-	echo. %langSyntax%: ip address[/prefix]^│auto^│dhcp^│list^│scan^│rename [mask] [gateway]
+	echo. %langSyntax%: ip address[/prefix]^┬│auto^┬│dhcp^┬│list^┬│scan^┬│rename [mask] [gateway]
 	echo.
 	echo. %langHelp1%
 	echo. %langHelp2%
@@ -203,16 +203,16 @@
 	
 		set /a countNA=countNA+1
 		
-		if /i "%%b"=="Подключен" set bNAconn!countNA!=%langON%
+		if /i "%%b"=="┬П┬о┬д┬к┬л├о├з┬е┬н" set bNAconn!countNA!=%langON%
 		if /i "%%b"=="Connected" set bNAconn!countNA!=%langON%
 
-		if /i "%%b"=="Отключен" (
+		if /i "%%b"=="┼╜├в┬к┬л├о├з┬е┬н" (
 			set bNAconn!countNA!=%langOFF%
-			if /i "%%a"=="Разрешен" set bNAconn!countNA!=%langCABLE%)
+			if /i "%%a"=="┬Р┬а┬з├а┬е├и┬е┬н" set bNAconn!countNA!=%langCABLE%)
 			
 		if /i "%%b"=="Disconnected" (
 			set bNAconn!countNA!=%langOFF%
-			if /i "%%a"=="Enabled"  set bNAadmin!countNA!=%langCABLE%)
+			if /i "%%a"=="Enabled"  set bNAconn!countNA!=%langCABLE%)
 		
 		set strNAname!countNA!=%%d
 		set "strNAaddress!countNA!=           "
@@ -246,19 +246,19 @@
 		
 		for /f "usebackq tokens=1-5 delims= " %%a in (`netsh interface ipv4 show addresses name^="!strNAname%%x!"`) do (
 		
-			if /i "%%a"=="DHCP" if "%%c"=="Да" set strNAtype%%x=DHCP
-			if /i "%%a"=="DHCP" if "%%c"=="Нет" set strNAtype%%x=static
+			if /i "%%a"=="DHCP" if "%%c"=="тАЮ┬а" set strNAtype%%x=DHCP
+			if /i "%%a"=="DHCP" if "%%c"=="┬Н┬е├в" set strNAtype%%x=static
 			if /i "%%a"=="DHCP" if "%%c"=="Yes" set strNAtype%%x=DHCP
 			if /i "%%a"=="DHCP" if "%%c"=="No" set strNAtype%%x=static
-			if /i "%%b"=="шлюз:" set strNAGateway%%x=%%c
+			if /i "%%b"=="├и┬л├о┬з:" set strNAGateway%%x=%%c
 			if /i "%%b"=="Gateway:" set strNAGateway%%x=%%c
-			if /i "%%a"=="IP-адрес" set strNAaddress%%x=%%b
+			if /i "%%a"=="IP-┬а┬д├а┬е├б" set strNAaddress%%x=%%b
 			if /i "%%a"=="IP" set strNAaddress%%x=%%c
 			if /i "%%a"=="Subnet" (
 				set strNAmask=%%e
 				set strNAmask%%x=!strNAmask:~0,-1!
 			)
-			if /i "%%b"=="подсети:" (
+			if /i "%%b"=="┬п┬о┬д├б┬е├в┬и:" (
 				set strNAmask=%%e
 				set strNAmask%%x=!strNAmask:~0,-1!
 			)
@@ -326,43 +326,43 @@
 	exit/b
 	
 :LangRUS
-	set "langWarn1=^│                       ВНИМАНИЕ.                            ^│"
-	set "langWarn2=^│ Скрипт был скопирован в системную директорию ^(%windir%^). ^│"
-	set "langWarn3=^│ Теперь запуск скрипта возможен из любой командой строки.   ^│"
-	set "langSyntax=Синтаксис"
-	set "langHelp1=^/prefix	Задаёт маску подсети в виде длины префикса сети."
-	set "langHelp2=auto и dhcp	Взаимозаменяемы. Включает автоматическое"
-	set "langHelp3= 		назначения адреса от DHCP-сервера."
-	set "langHelp4=list		Выводит список сетевых адаптеров."
-	set "langHelp5=scan		Сканирует адреса в подсети."
-	set "langHelp6=rename		Переименовывает сетевой адаптер."
-	set "langHelp7=Примеры:"
-	set "langSelectOnOff=Введите # адаптера, чтобы включить или отключить его (0 для отмены): "
-	set "langSelectRename=Введите # адаптера, который следует переименовать (0 для отмены): "
-	set "langSelectScan=Введите # адаптера, для сканирования его подсети (0 для отмены): "
-	set "langSelectApply=Введите # адаптера для применения параметров (0 для отмены): "
-	set "langNewName=Введите новое имя для"
-	set "langNow=Для"
-	set "langDHCP=включен режим DHCP."
-	set "langHasAddress=назначен адрес"
-	set "langAndGate=и шлюз"
-	set "langTurnOn=Включение"
-	set "langTurnOff=Отключение"
-	set "langScanFrom=Сканирование адресов с"
-	set "langTo=до"
-	set "langChecking=Проверка"
-	set "langFound=Найдено"
-	set "langAnswers=отвечает"
-	set "langON=ВКЛ "
-	set "langOFF=ОТКЛ"
-	set "langCABLE=Кабл"
-	set "langTitles=#  Реж. Тип	Адрес		Маска		Шлюз		Название"
+	set "langWarn1=^┬│                       тАЪ┬Н╦Ж┼ТтВм┬Н╦ЖтАж.                            ^┬│"
+	set "langWarn2=^┬│ тАШ┬к├а┬и┬п├в ┬б├л┬л ├б┬к┬о┬п┬и├а┬о┬в┬а┬н ┬в ├б┬и├б├в┬е┬м┬н├г├о ┬д┬и├а┬е┬к├в┬о├а┬и├о ^(%windir%^). ^┬│"
+	set "langWarn3=^┬│ тАЩ┬е┬п┬е├а├м ┬з┬а┬п├г├б┬к ├б┬к├а┬и┬п├в┬а ┬в┬о┬з┬м┬о┬ж┬е┬н ┬и┬з ┬л├о┬б┬о┬й ┬к┬о┬м┬а┬н┬д┬о┬й ├б├в├а┬о┬к┬и.   ^┬│"
+	set "langSyntax=тАШ┬и┬н├в┬а┬к├б┬и├б"
+	set "langHelp1=^/prefix	тАб┬а┬д┬а├▒├в ┬м┬а├б┬к├г ┬п┬о┬д├б┬е├в┬и ┬в ┬в┬и┬д┬е ┬д┬л┬и┬н├л ┬п├а┬е├д┬и┬к├б┬а ├б┬е├в┬и."
+	set "langHelp2=auto ┬и dhcp	тАЪ┬з┬а┬и┬м┬о┬з┬а┬м┬е┬н├п┬е┬м├л. тАЪ┬к┬л├о├з┬а┬е├в ┬а┬в├в┬о┬м┬а├в┬и├з┬е├б┬к┬о┬е"
+	set "langHelp3= 		┬н┬а┬з┬н┬а├з┬е┬н┬и├п ┬а┬д├а┬е├б┬а ┬о├в DHCP-├б┬е├а┬в┬е├а┬а."
+	set "langHelp4=list		тАЪ├л┬в┬о┬д┬и├в ├б┬п┬и├б┬о┬к ├б┬е├в┬е┬в├л├е ┬а┬д┬а┬п├в┬е├а┬о┬в."
+	set "langHelp5=scan		тАШ┬к┬а┬н┬и├а├г┬е├в ┬а┬д├а┬е├б┬а ┬в ┬п┬о┬д├б┬е├в┬и."
+	set "langHelp6=rename		┬П┬е├а┬е┬и┬м┬е┬н┬о┬в├л┬в┬а┬е├в ├б┬е├в┬е┬в┬о┬й ┬а┬д┬а┬п├в┬е├а."
+	set "langHelp7=┬П├а┬и┬м┬е├а├л:"
+	set "langSelectOnOff=тАЪ┬в┬е┬д┬и├в┬е # ┬а┬д┬а┬п├в┬е├а┬а, ├з├в┬о┬б├л ┬в┬к┬л├о├з┬и├в├м ┬и┬л┬и ┬о├в┬к┬л├о├з┬и├в├м ┬е┬г┬о (0 ┬д┬л├п ┬о├в┬м┬е┬н├л): "
+	set "langSelectRename=тАЪ┬в┬е┬д┬и├в┬е # ┬а┬д┬а┬п├в┬е├а┬а, ┬к┬о├в┬о├а├л┬й ├б┬л┬е┬д├г┬е├в ┬п┬е├а┬е┬и┬м┬е┬н┬о┬в┬а├в├м (0 ┬д┬л├п ┬о├в┬м┬е┬н├л): "
+	set "langSelectScan=тАЪ┬в┬е┬д┬и├в┬е # ┬а┬д┬а┬п├в┬е├а┬а, ┬д┬л├п ├б┬к┬а┬н┬и├а┬о┬в┬а┬н┬и├п ┬е┬г┬о ┬п┬о┬д├б┬е├в┬и (0 ┬д┬л├п ┬о├в┬м┬е┬н├л): "
+	set "langSelectApply=тАЪ┬в┬е┬д┬и├в┬е # ┬а┬д┬а┬п├в┬е├а┬а ┬д┬л├п ┬п├а┬и┬м┬е┬н┬е┬н┬и├п ┬п┬а├а┬а┬м┬е├в├а┬о┬в (0 ┬д┬л├п ┬о├в┬м┬е┬н├л): "
+	set "langNewName=тАЪ┬в┬е┬д┬и├в┬е ┬н┬о┬в┬о┬е ┬и┬м├п ┬д┬л├п"
+	set "langNow=тАЮ┬л├п"
+	set "langDHCP=┬в┬к┬л├о├з┬е┬н ├а┬е┬ж┬и┬м DHCP."
+	set "langHasAddress=┬н┬а┬з┬н┬а├з┬е┬н ┬а┬д├а┬е├б"
+	set "langAndGate=┬и ├и┬л├о┬з"
+	set "langTurnOn=тАЪ┬к┬л├о├з┬е┬н┬и┬е"
+	set "langTurnOff=┼╜├в┬к┬л├о├з┬е┬н┬и┬е"
+	set "langScanFrom=тАШ┬к┬а┬н┬и├а┬о┬в┬а┬н┬и┬е ┬а┬д├а┬е├б┬о┬в ├б"
+	set "langTo=┬д┬о"
+	set "langChecking=┬П├а┬о┬в┬е├а┬к┬а"
+	set "langFound=┬Н┬а┬й┬д┬е┬н┬о"
+	set "langAnswers=┬о├в┬в┬е├з┬а┬е├в"
+	set "langON=тАЪ┼атА╣ "
+	set "langOFF=┼╜тАЩ┼атА╣"
+	set "langCABLE=┼а┬а┬б┬л"
+	set "langTitles=#  ┬Р┬е┬ж. тАЩ┬и┬п	тВм┬д├а┬е├б		┼Т┬а├б┬к┬а		╦Ь┬л├о┬з		┬Н┬а┬з┬в┬а┬н┬и┬е"
 	exit/b
 	
 :LangENG
-	set "langWarn1=^│                       WARNING.                             ^│"
-	set "langWarn2=^│ Script file was copied to the system folder ^(%windir%^).  ^│"
-	set "langWarn3=^│ Now the script could be run from any command line.         ^│"
+	set "langWarn1=^┬│                       WARNING.                             ^┬│"
+	set "langWarn2=^┬│ Script file was copied to the system folder ^(%windir%^).  ^┬│"
+	set "langWarn3=^┬│ Now the script could be run from any command line.         ^┬│"
 	set "langSyntax=Syntax"
 	set "langHelp1=^/prefix	Sets a mask in the form of a network prefix length."
 	set "langHelp2=auto and dhcp	Interchangeable. Enables getting"
