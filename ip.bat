@@ -1,6 +1,6 @@
 @echo off
 @setlocal enabledelayedexpansion enableextensions
-::ip script v.0.5 by @hi3xx
+::ip script v.1.0 by @hi3xx
 
 ::Get the language from the system
 	call :LangENG
@@ -9,7 +9,6 @@
 			call :LangRUS
 		)
 	)
-	set strLetters=abcdefghijklmnopqrstuvwxyz
 
 ::Copy the script file to %windir%
 	if not exist %windir%\ip.bat (
@@ -21,96 +20,238 @@
 		echo.└────────────────────────────────────────────────────────────┘
 	)
 
-::Processing script arguments
+::Parsing script arguments
 	set strArg1=%~1
+	set strArg2=%~2
+	set strArg3=%~3
+	set strArg4=%~4
+	
+	for /l %%a in (1,1,4) do (
+	
+		set strCurrentArg=!strArg%%a!
+		
+		if "!strCurrentArg!" NEQ "" (
+			set iArgProcessed=0
+		
+			if /i "!strCurrentArg!" == "auto"     set iArgProcessed=1& set strArgMode=dhcp
+			if /i "!strCurrentArg!" == "dhcp"     set iArgProcessed=1& set strArgMode=dhcp
+			if /i "!strCurrentArg!" == "list"     set iArgProcessed=1& set strArgMode=list
+			if /i "!strCurrentArg!" == "rename"   set iArgProcessed=1& set strArgMode=rename
+			if /i "!strCurrentArg:~-1!" == "?"    set iArgProcessed=1& set strArgMode=help
+			if /i "!strCurrentArg:~-4!" == "help" set iArgProcessed=1& set strArgMode=help
+			
+			if /i "!strCurrentArg!" == "scan" (
+				set iArgProcessed=1
+				set strArgMode=scan
+				set iScanArg=%%a
+			)
+			
+			::"names" should be after "scan"
+			if /i "!strCurrentArg!" == "names" (
+				set iArgProcessed=1
+				if "%%a" GTR "!iScanArg!" (
+					set "strArgScanNames=-a"
+				)
+			)
+			
+			::try to parse IP-like arg - xxx.xxx.xxx.xxx/xx
+			for /f "tokens=1-5 delims=./" %%i in ("!strCurrentArg!") do (
+				if "%%l" NEQ "" (
+					call :isNumber %%i
+					if errorlevel == 1 (
+						call :isNumber %%j
+						if errorlevel == 1 (
+							call :isNumber %%k
+							if errorlevel == 1 (
+								call :isNumber %%l
+								if errorlevel == 1 (
+									if defined strArgIP (
+										if defined strArgMask (
+											set iArgProcessed=1
+											set strArgGateway=%%i.%%j.%%k.%%l
+										) else (
+											set iArgProcessed=1
+											set strArgMask=%%i.%%j.%%k.%%l
+										)
+									) else (
+										set iArgProcessed=1
+										set strArgMode=set
+										set strArgIP=%%i.%%j.%%k.%%l
+									)
+								)
+								
+								call :isNumber %%m
+								if errorlevel == 1 (
+									if "!strCurrentArg:~-2,1!" == "/" set strArgPrefix=%%m
+									if "!strCurrentArg:~-3,1!" == "/" set strArgPrefix=%%m
+								)
+								
+								if defined strArgPrefix (
+									call :convertPrefixToMask !strArgPrefix!
+								)
+								
+							)
+						)
+					)
+				)
+			)
 
-	if /i "%strArg1%" == "" (
-		call :Help
-		call :List
-		call :OnOff
+			::if it is just a number - consider it is a adapter's number
+			call :isNumber !strCurrentArg!
+			if errorlevel == 1 (
+				set iArgProcessed=1
+				set iArgNumberNA=!strCurrentArg!
+			)
+			
+			::if arg is still not processed - consider it is a adapter's name
+			if !iArgProcessed! == 0 (
+				if defined strArgNameNA (
+					set strArgNewName=!strCurrentArg!
+				) else (
+					set strArgNameNA=!strCurrentArg!
+				)
+				
+				if defined iArgNumberNA (
+					set strArgNewName=!strCurrentArg!
+				)
+			)
+		)
+	)	
+
+:Main	
+::Processing script arguments
+	if /i "%strArgMode%" == "help" (
+		call :showHelp
+		exit/b)
+	
+	call :getAdaptersInfo
+	
+	if not defined strArgMode (
+		if not defined iArgNumberNA call :showHelp
+		call :showAdaptersList
+		call :selectToTurnOnOff
 		exit/b
 	)
 
-	if /i "%strArg1%" == "auto"   goto DHCP
-	if /i "%strArg1%" == "dhcp"   goto DHCP
-	if /i "%strArg1%" == "rename" goto Rename
-	if /i "%strArg1%" == "scan"   goto Scan
-	if /i "%strArg1%" == "list"     (call :List& exit/b)
-	if /i "%strArg1:~-1%" == "?"    (call :Help& exit/b)
-	if /i "%strArg1:~-4%" == "help" (call :Help& exit/b)
+	if /i "%strArgMode%" == "auto"   set bDHCP=1
+	if /i "%strArgMode%" == "dhcp"   set bDHCP=1
+	if /i "%strArgMode%" == "rename" goto renameNA
+	if /i "%strArgMode%" == "scan"   goto scanSubnet
 	
-	set argAddress=%strArg1%
+	call :showAdaptersList
+
+	if /i "%strArgMode%" == "list" exit/b
 	
-	if "%strArg1:~-2,1%"=="/" (
-		set argPrefix=%strArg1:~-1%
-		set argAddress=%strArg1:~0,-2%
+	if defined iArgNumberNA (
+		set /a iChoice=iArgNumberNA
+	) else (
+		::Ask which adapter to work with
+		choice /c !strChoice!0 /n /m "%langSelectApply%"
+		set /a iChoice=!errorlevel!
 	)
 	
-	if "%strArg1:~-3,1%"=="/" (
-		set argPrefix=%strArg1:~-2%
-		set argAddress=%strArg1:~0,-3%
+	if %iChoice% GTR %countNA% exit /b
+	
+	set strSelNA=!strNAname%iChoice%!
+	set bSelNAconn=!bNAconn%iChoice%!
+
+	::Turn on the adapter if it is turned off
+	if "%bSelNAconn%"=="%langOFF%" (
+		call :turnOnOffAdapter %iChoice%
+		set bUseTimeout=1
+	)
+
+	::Set the address from specified parameters
+	if defined bDHCP (
+		netsh interface ipv4 set address name="%strSelNA%" source=dhcp
+		if !errorlevel!==0 (
+			echo %langNow% "%strSelNA%" %langDHCP%
+			set bUseTimeout=1
+		)
+	) else (
+		if defined strArgGateway (
+			netsh interface ipv4 set address name="%strSelNA%" static %strArgIP% %strArgMask% %strArgGateway%
+			if !errorlevel!==0 echo %langNow% "%strSelNA%" %langHasAddress% %strArgIP% ^(%strArgMask%^) %langAndGate% %strArgGateway%.
+			
+		) else (
+			if defined strArgMask (
+				netsh interface ipv4 set address name="%strSelNA%" static %strArgIP% %strArgMask%
+				if !errorlevel!==0 echo %langNow% "%strSelNA%" %langHasAddress% %strArgIP% ^(%strArgMask%^).
+			
+			) else (
+				netsh interface ipv4 set address name="%strSelNA%" static %strArgIP%
+				if !errorlevel!==0 echo %langNow% "%strSelNA%" %langHasAddress% %strArgIP%.
+			)
+		)
 	)
 	
-	if defined argPrefix (
-		call :subPrefixToMask !argPrefix!
-		if "%~2" NEQ "" set argGateway=%~2
+	if "%bUseTimeout%"=="1" timeout /t 3 /nobreak>0
+	
+	call :getAdaptersInfo
+	call :showAdaptersList				
+
+	pause
+	exit/b
+	
+:selectToTurnOnOff
+	if defined iArgNumberNA (
+		set /a iChoice=iArgNumberNA
+	) else (
+		choice /c !strChoice!0 /n /m "%langSelectOnOff%"
+		set /a iChoice=!errorlevel!
+	)
+
+	echo.
+	if %iChoice% GTR %countNA% exit /b
+	call :turnOnOffAdapter %iChoice%
+	timeout /t 3 /nobreak>0
+	call :getAdaptersInfo
+	call :showAdaptersList
+	pause
+	exit/b
+
+:turnOnOffAdapter [#]
+::Turning ON or OFF the adapter
+	set strSelNA=!strNAname%1!
+	
+	if "!bNAconn%1!"=="%langOFF%" (
+		echo.%langTurnOn% "%strSelNA%"...
+		netsh interface set interface name="%strSelNA%" admin=ENABLE	
 		
 	) else (
-		if "%~2" NEQ "" set argMask=%~2
-		if "%~3" NEQ "" set argGateway=%~3
+		echo.%langTurnOff% "%strSelNA%"...
+		netsh interface set interface name="%strSelNA%" admin=DISABLE
 	)
 
-	goto Main
-
-:Help
-	echo.
-	echo. %langSyntax%: ip address[/prefix]^│auto^│dhcp^│list^│scan^│rename [mask] [gateway]
-	echo.
-	echo. %langHelp1%
-	echo. %langHelp2%
-	echo. %langHelp3%
-	echo. %langHelp4%
-	echo. %langHelp5%
-	echo. %langHelp6%
-	echo.
-	echo. %langHelp7%
-	echo. ip auto
-	echo. ip 192.168.0.10
-	echo. ip 192.168.0.10^/24
-	echo. ip 192.168.0.10 255.255.255.0 192.168.0.1
-	exit/b
-
-:List
-	call :subShowAdaptersList
 	exit/b
 	
-:OnOff
-	choice /c !strChoice!0 /n /m "%langSelectOnOff%"
-	set /a iChoice=%errorlevel%
-	echo.
+:renameNA
+	if defined iArgNumberNA (
+		set /a iChoice=iArgNumberNA
+	) else (	
+		call :showAdaptersList
+		choice /c !strChoice!0 /n /m "%langSelectRename%"
+		set /a iChoice=!errorlevel!
+	)
 	if %iChoice% GTR %countNA% exit /b
-	call :subOnOffAdapter %iChoice%
-	timeout /t 3 /nobreak>0
-	call :subShowAdaptersList	
-	pause
-	exit/b
-
-:Rename
-	call :subShowAdaptersList
-	choice /c !strChoice!0 /n /m "%langSelectRename%"
-	set /a iChoice=%errorlevel%
-	echo.
-	if %iChoice% GTR %countNA% exit /b
-	set/p strNewName=%langNewName% "!strNAname%iChoice%!": 
-	netsh interface set interface name="!strNAname%iChoice%!" newname="%strNewName%"
-	call :subShowAdaptersList	
+	
+	if not defined strArgNewName (
+		set/p strArgNewName=%langNewName% "!strNAname%iChoice%!": 
+	)
+	netsh interface set interface name="!strNAname%iChoice%!" newname="%strArgNewName%"
+	call :getAdaptersInfo
+	call :showAdaptersList	
 	pause
 	exit/b
 	
-:Scan
-	call :subShowAdaptersList
-	choice /c !strChoice!0 /n /m "%langSelectScan%"
-	set /a iChoice=%errorlevel%
+:scanSubnet
+	call :showAdaptersList
+	if defined iArgNumberNA (
+		set /a iChoice=iArgNumberNA
+	) else (
+		choice /c !strChoice!0 /n /m "%langSelectScan%"
+		set /a iChoice=!errorlevel!
+	)
 	echo.
 	if %iChoice% GTR %countNA% exit /b
 	
@@ -127,75 +268,39 @@
 	)
 	set iFound=0
 	echo %langScanFrom% %strSubnet%.1 %langTo% %strSubnet%.254...
+	
 	for /l %%a in (1,1,254) do (
 		if "%strSubnet%.%%a" NEQ "%strSelNAaddress%" (
 			title %langChecking% %strSubnet%.%%a
-			for /f %%b in ('ping %strSubnet%.%%a -n 1 -w 100 ^| find /c "(0"') do (
-				if %%b GTR 0 (
-					echo %strSubnet%.%%a %langAnswers%.
-					set /a iFound=!iFound!+1
+
+			set "strHostName="
+
+			for /f "delims=" %%b in ('ping %strArgScanNames% %strSubnet%.%%a -n 1 -w 100 ^| findstr "[ (0"') do (
+				
+				for /f %%c in ('echo %%b ^| find /c "["') do (
+					if %%c GTR 0 (
+						for /f "tokens=%langHostNameToken%" %%d in ("%%b") do (
+							set strHostName=^(%%d^)
+						)
+
+					)
+				)
+				
+				for /f %%c in ('echo %%b ^| find /c "(0"') do (
+					if %%c GTR 0 (
+						echo %strSubnet%.%%a %langAnswers%. !strHostName!
+						set /a iFound=!iFound!+1
+					)
 				)
 			)
 		)
 	)
+
 	echo %langFound%: %iFound%
 	pause
 	exit/b
-	
-:DHCP
-	set argDHCP=1
-	
-:Main
-	call :subShowAdaptersList
 
-	::Ask which adapter to work with
-	choice /c !strChoice!0 /n /m "%langSelectApply%"
-	
-	set /a iChoice=%errorlevel%
-	
-	if %iChoice% GTR %countNA% exit /b
-	
-	set strSelNA=!strNAname%iChoice%!
-	set bSelNAconn=!bNAconn%iChoice%!
-
-	::Turn on the adapter if it is turned off
-	if "%bSelNAconn%"=="%langOFF%" (
-		call :subOnOffAdapter %iChoice%
-		set bUseTimeout=1
-	)
-
-	::Set the address from specified parameters
-	if defined argDHCP (
-		netsh interface ipv4 set address name="%strSelNA%" source=dhcp
-		if !errorlevel!==0 (
-			echo %langNow% "%strSelNA%" %langDHCP%
-			set bUseTimeout=1
-		)
-	) else (
-		if defined argGateway (
-			netsh interface ipv4 set address name="%strSelNA%" static %argAddress% %argMask% %argGateway%
-			if !errorlevel!==0 echo %langNow% "%strSelNA%" %langHasAddress% %argAddress% ^(%argMask%^) %langAndGate% %argGateway%.
-			
-		) else (
-			if defined argMask (
-				netsh interface ipv4 set address name="%strSelNA%" static %argAddress% %argMask%
-				if !errorlevel!==0 echo %langNow% "%strSelNA%" %langHasAddress% %argAddress% ^(%argMask%^).
-			
-			) else (
-				netsh interface ipv4 set address name="%strSelNA%" static %argAddress%
-				if !errorlevel!==0 echo %langNow% "%strSelNA%" %langHasAddress% %argAddress%.
-			)
-		)
-	)
-	
-	if "%bUseTimeout%"=="1" timeout /t 3 /nobreak>0
-	
-	call :subShowAdaptersList				
-
-	pause
-	exit/b
-
-:subShowAdaptersList
+:getAdaptersInfo
 	::Get names of adapters from "show interface" and count them
 	set countNA=0
 	
@@ -218,6 +323,8 @@
 		set "strNAaddress!countNA!=           "
 		set "strNAmask!countNA!=           "
 		set "strNAgateway!countNA!=           "
+		
+		if /i "%strArgNameNA%" == "%%d" set /a iArgNumberNA=!countNA!
 	)
 	
 	if !countNA! GTR 35 set countNA=35
@@ -264,11 +371,14 @@
 			)
 		)
 	)
-
-	::Display a list of adapters
+	exit/b
+	
+:showAdaptersList
+	::show dialog to select an adapter
 	set strChoice=
+	set strLetters=abcdefghijklmnopqrstuvwxyz
 	echo.
-	echo  %langTitles%
+	echo  %langColumns%
 	
 	for /l %%x in (1,1,!countNA!) do (
 		
@@ -286,60 +396,61 @@
 	)
 	echo.
 	exit/b
-
-:subOnOffAdapter [#]
-::Turning ON or OFF the adapter
-	set strSelNA=!strNAname%1!
 	
-	if "!bNAconn%1!"=="%langOFF%" (
-		echo.%langTurnOn% "%strSelNA%"...
-		netsh interface set interface name="%strSelNA%" admin=ENABLE	
-		
-	) else (
-		echo.%langTurnOff% "%strSelNA%"...
-		netsh interface set interface name="%strSelNA%" admin=DISABLE
-	)
-
-	exit/b
-
-:subPrefixToMask [prefix]
+:convertPrefixToMask [prefix]
 ::Transform a prefix length to a mask
-	if "%1" == "0" (
-		set argMask=0.0.0.0
-		exit/b
-	)
-	if "%1" == "31" (
-		set argMask=255.255.255.254
-		exit/b
-	)
-	if "%1" == "32" (
-		set argMask=255.255.255.255
-		exit/b
-	)
-
+	if "%1" == "0"  set strArgMask=0.0.0.0
+	if "%1" == "31" set strArgMask=255.255.255.254
+	if "%1" == "32" set strArgMask=255.255.255.255
+	
+	if defined strArgMask exit/b
+	
 	set strMasks=128.0.0.0 192.0.0.0 224.0.0.0 240.0.0.0 248.0.0.0 252.0.0.0 254.0.0.0 255.0.0.0 255.128.0.0 255.192.0.0
 	set strMasks=%strMasks% 255.224.0.0 255.240.0.0 255.248.0.0 255.252.0.0 255.254.0.0 255.255.0.0 255.255.128.0 255.255.192.0
 	set strMasks=%strMasks% 255.255.224.0 255.255.240.0 255.255.248.0 255.255.252.0 255.255.254.0 255.255.255.0 255.255.255.128
 	set strMasks=%strMasks% 255.255.255.192 255.255.255.224 255.255.255.240 255.255.255.248 255.255.255.252
-	for /f "tokens=%1" %%a in ("%strMasks%") do set argMask=%%a
+	for /f "tokens=%1" %%a in ("%strMasks%") do set strArgMask=%%a
 
 	exit/b
-	
+
+:isNumber [arg]
+::returns 1 if arg is number else 0
+	set iResult=1
+	for /f "tokens=1 delims=0123456789" %%x in ("%~1") do set iResult=0
+	if %iResult% == 1 exit /b 1
+	exit /b 0
+
+:showHelp
+	echo. ip address[/prefix] [mask] [gateway]^│auto^│dhcp^│rename^│scan [names]^│list [#/name]
+	echo.
+	echo. %langHelp1%
+	echo. %langHelp2%
+	echo. %langHelp3%
+	echo. %langHelp4%
+	echo. %langHelp5%
+	echo. %langHelp6%
+	echo.
+	echo. %langHelp7%
+	echo. ip auto
+	echo. ip 192.168.0.10
+	echo. ip 192.168.0.10^/24
+	echo. ip 192.168.0.10 255.255.255.0 192.168.0.1
+	exit/b
+
 :LangRUS
 	set "langWarn1=^│                       ВНИМАНИЕ.                            ^│"
 	set "langWarn2=^│ Скрипт был скопирован в системную директорию ^(%windir%^). ^│"
 	set "langWarn3=^│ Теперь запуск скрипта возможен из любой командой строки.   ^│"
-	set "langSyntax=Синтаксис"
-	set "langHelp1=^/prefix	Задаёт маску подсети в виде длины префикса сети."
-	set "langHelp2=auto и dhcp	Взаимозаменяемы. Включает автоматическое"
-	set "langHelp3= 		назначения адреса от DHCP-сервера."
-	set "langHelp4=list		Выводит список сетевых адаптеров."
-	set "langHelp5=scan		Сканирует адреса в подсети."
-	set "langHelp6=rename		Переименовывает сетевой адаптер."
+	set "langHelp1=^/prefix	Задать маску подсети в виде длины префикса сети."
+	set "langHelp2=auto или dhcp	Включить автоматическое назначение адреса от DHCP-сервера."
+	set "langHelp3=rename		Переименовать сетевой адаптер."
+	set "langHelp4=scan		Сканировать адреса в подсети. scan names выведет имена хостов (долго)."
+	set "langHelp5=list		Вывести список сетевых адаптеров."
+	set "langHelp6=#/name		Выбор адаптера по его # или имени (можно указать в любом месте строки)."
 	set "langHelp7=Примеры:"
 	set "langSelectOnOff=Введите # адаптера, чтобы включить или отключить его (0 для отмены): "
 	set "langSelectRename=Введите # адаптера, который следует переименовать (0 для отмены): "
-	set "langSelectScan=Введите # адаптера, для сканирования его подсети (0 для отмены): "
+	set "langSelectScan=Введите # адаптера для сканирования его подсети (0 для отмены): "
 	set "langSelectApply=Введите # адаптера для применения параметров (0 для отмены): "
 	set "langNewName=Введите новое имя для"
 	set "langNow=Для"
@@ -348,6 +459,7 @@
 	set "langAndGate=и шлюз"
 	set "langTurnOn=Включение"
 	set "langTurnOff=Отключение"
+	set "langHostNameToken=4"
 	set "langScanFrom=Сканирование адресов с"
 	set "langTo=до"
 	set "langChecking=Проверка"
@@ -356,20 +468,19 @@
 	set "langON=ВКЛ "
 	set "langOFF=ОТКЛ"
 	set "langCABLE=Кабл"
-	set "langTitles=#  Реж. Тип	Адрес		Маска		Шлюз		Название"
+	set "langColumns=#  Реж. Тип	Адрес		Маска		Шлюз		Название"
 	exit/b
 	
 :LangENG
 	set "langWarn1=^│                       WARNING.                             ^│"
 	set "langWarn2=^│ Script file was copied to the system folder ^(%windir%^).  ^│"
 	set "langWarn3=^│ Now the script could be run from any command line.         ^│"
-	set "langSyntax=Syntax"
-	set "langHelp1=^/prefix	Sets a mask in the form of a network prefix length."
-	set "langHelp2=auto and dhcp	Interchangeable. Enables getting"
-	set "langHelp3= 		the address from a DHCP-server."
-	set "langHelp4=list		Displays the list of adapters."
-	set "langHelp5=scan		Scans addresses in the subnet."
-	set "langHelp6=rename		Renames the adapter."
+	set "langHelp1=^/prefix	Set a mask in the form of a network prefix length."
+	set "langHelp2=auto or dhcp	Enable getting the address from a DHCP-server."
+	set "langHelp3=rename		Rename the adapter."
+	set "langHelp4=scan		Scan addresses in the subnet. scan names will print hostnames (slow)."
+	set "langHelp5=list		Display the list of adapters."
+	set "langHelp6=#/name		Select the adapter by its # or name (at any place in the line)."
 	set "langHelp7=Examples:"
 	set "langSelectOnOff=Select # of the adapter to turn it ON or OFF (0 - cancel): "
 	set "langSelectRename=Select # of the adapter to rename it (0 - cancel): "
@@ -382,6 +493,7 @@
 	set "langAndGate=and gateway"
 	set "langTurnOn=Turning on"
 	set "langTurnOff=Turning off"
+	set "langHostNameToken=2"
 	set "langScanFrom=Scanning addresses from"
 	set "langTo=to"
 	set "langChecking=Checking"
@@ -390,5 +502,5 @@
 	set "langON=ON  "
 	set "langOFF=OFF "
 	set "langCABLE=Cabl"
-	set "langTitles=#  Mode Type	Address		Mask		Gateway		Name"
+	set "langColumns=#  Mode Type	Address		Mask		Gateway		Name"
 	exit/b
